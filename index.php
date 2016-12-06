@@ -5,23 +5,12 @@
 <h2>AWS Rekognition Test</h2>
 Click <a href="upload-form.php">here</a> to upload an image.
 <?php
-require 'aws-autoloader.php';
 require 'include/config.php';
 
-use Aws\DynamoDb\DynamoDbClient;
-
-$dynamoDB = DynamoDBClient::factory(array(
-	'region'        => $DynamoDBRegion,
-	'version'       => 'latest'
-));
-
-// run a describeTable to get the number of items
-// note, this isn't live data and is a bit of a kludge at present
-$totalItems = $dynamoDB->describeTable([
-       	'TableName'     => $DynamoDBTableName
-]);
-
-echo "<p>So far there have been <strong>" . $totalItems['Table']['ItemCount'] . "</strong> images uploaded and scanned via Rekognition.</p>";
+// instead of using DynamoDB to get the total items (lag by 6 hours) we'll
+// use the local count.txt file
+$count = file_get_contents('tmp/count.txt');
+echo "<p>So far <strong>$count</strong> images have been uploaded and scanned via Rekognition.</p>";
 ?>
 
 </body>

@@ -16,7 +16,7 @@ $localUploadDir = "tmp/";
 
 $targetFile = $localUploadDir . basename($_FILES["fileToUpload"]["name"]);
 $uploadOk = 1;
-$imageFileType = pathinfo($targetFile,PATHINFO_EXTENSION);
+$imageFileType = strtolower(pathinfo($targetFile,PATHINFO_EXTENSION));
 
 // see if the image file actualy an image
 if(isset($_POST["submit"])) {
@@ -73,7 +73,7 @@ if ($uploadOk == 0) {
 		'SourceFile'	=> $filepath,
 		'ContentType'	=> $mime,
 		'ACL'		=> 'public-read',
-		'StorageClass'	=> 'STANDARD',
+		'StorageClass'	=> $S3StorageClass,
 		'Metadata'	=> array(
 			'string'	=> 'string'
 		)
@@ -125,10 +125,19 @@ if ($uploadOk == 0) {
 	foreach($labels['Labels'] as $row) {
 		echo '<tr>';
 		echo '<td>' . $row['Name'] . '</td>';
-		echo '<td>' . $row['Confidence'] . '</td>';
+		echo '<td>' . $row['Confidence'] . '%</td>';
 		echo '</tr>';
 	}
 	echo '</table></p>';
+
+	// we're currently storing the number of uploads in a local file
+        // instead of DynamoDB due to the inability to easily "count rows".
+        // it's time to increment that value.
+        $file = 'tmp/count.txt';
+        $value = file_get_contents($file);
+        $value = $value + 1;
+        file_put_contents($file, $value);
+
     } else {
         echo "Sorry, there was an error uploading your file.";
     }
