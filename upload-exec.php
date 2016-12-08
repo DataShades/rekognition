@@ -13,8 +13,8 @@ use Aws\DynamoDb\DynamoDbClient;
 
 // variables specific to this script
 $localUploadDir = "tmp/";
-
-$targetFile = $localUploadDir . basename($_FILES["fileToUpload"]["name"]);
+$fileName = basename($_FILES["fileToUpload"]["name"]);
+$targetFile = $localUploadDir . $fileName;
 $uploadOk = 1;
 $imageFileType = strtolower(pathinfo($targetFile,PATHINFO_EXTENSION));
 
@@ -55,10 +55,16 @@ if ($uploadOk == 0) {
 } else {
 	if (move_uploaded_file($_FILES["fileToUpload"]["tmp_name"], $targetFile)) {
 	
-	// upload success, time to send the file to S3 for processing by Rekognition
+	// upload success. before we do anything else, let's make the image smaller and more manageable.
+	$scaledFile = "scaled_" . $fileName;
+	$resizeCmd = "convert $targetFile -resize 1024x1024\> tmp/" . $scaledFile;
+        exec($resizeCmd, $output, $return);
+
+	// now let's send the original to S3 for processing
+	// we send the original as Rekognition needs as much detail as possible
 	$bucket = "joel-image-bucket";
-	$keyname = $_FILES["fileToUpload"]["name"];
-	$filepath = $localUploadDir . basename( $_FILES["fileToUpload"]["name"]);
+	$keyname = $fileName;
+	$filepath = $localUploadDir . $fileName;
 	$mime = $check['mime'];
 
 	// instantiate S3 class
@@ -80,10 +86,6 @@ if ($uploadOk == 0) {
 		));
 
 	echo '<h3>Result</h3>';
-	echo '<p><img src="' . $result['ObjectURL'] . '" width="400" /></p>';
-
-	// delete the local copy of the upload, now that it's on S3
-	unlink($filepath);
 
 	$rekognition = RekognitionClient::factory(array(
 		'region'	=> $RekognitionRegion,
@@ -122,13 +124,32 @@ if ($uploadOk == 0) {
 
 	// now we output the labels that Rekognition returned in a basic HTML table
 	echo '<p><table border="1"><tr><th>Label</th><th>Confidence</th></tr>';	
+	$i = 0;
 	foreach($labels['Labels'] as $row) {
 		echo '<tr>';
 		echo '<td>' . $row['Name'] . '</td>';
-		echo '<td>' . $row['Confidence'] . '%</td>';
+		echo '<td>' . round($row['Confidence'], 2) . '%</td>';
 		echo '</tr>';
+
+		// send each label over 85% to an array for later
+		if(round($row['Confidence'], 2) >= '85') {
+			if($i == 0) {
+				// declare the array on first occurrance but not again
+				$confidentLabels = array();
+			}
+			array_push($confidentLabels, $row['Name'] . ': ' . round($row['Confidence'], 2) . '\%');
+			$i++;
+		}
 	}
 	echo '</table></p>';
+
+	// check to see if we didn't get any labels over 85% and display a message to that effect on the image
+	if(!isset($confidentLabels)) {
+		$confidentLabelsCmd = 'Rekognition did not have 85\% or higher confidence in any label for this image.';
+	} else {
+		// get the labels from the array and put them into a string for image processing
+	        $confidentLabelsCmd = implode(" | ", $confidentLabels);
+	}
 
 	// we're currently storing the number of uploads in a local file
         // instead of DynamoDB due to the inability to easily "count rows".
@@ -138,6 +159,42 @@ if ($uploadOk == 0) {
         $value = $value + 1;
         file_put_contents($file, $value);
 
+	// get the label string we retrieved and annotate the local scaled image
+	$labelledFile = 'lbl_' . $fileName;
+	$convert = "convert tmp/$scaledFile -pointsize 14 -gravity North -background Plum -splice 0x20 -annotate +0+4 '$confidentLabelsCmd' tmp/$labelledFile";
+	exec($convert, $output, $return);
+
+	// now we send the annotated image to S3
+	$keyname = $labelledFile;
+	$filepath = 'tmp/' . $labelledFile;
+        $result = $s3->putObject(array(
+                'Bucket'        => $S3Bucket,
+                'Key'           => 'tagged-images/' . $keyname,
+                'SourceFile'    => $filepath,
+                'ContentType'   => $mime,
+                'ACL'           => 'public-read',
+                'StorageClass'  => $S3StorageClass,
+                'Metadata'      => array(
+                        'string'        => 'string'
+                )
+                ));
+
+	// now we can remove the original and labelled file because they're on S3
+	unlink('tmp/' . $fileName);
+	unlink('tmp/' . $labelledFile);
+	unlink('tmp/' . $scaledFile);
+
+	// now we display the final tagged image from S3.
+	$url = $result['ObjectURL'];
+	echo '<img src="' . $url . '" />';
+	
+	// Generate a link to tweet the image
+	$tweetURL = 'share?text=AWS Rekognition is pretty awesome, see what it found in my image:&url=' . $url;
+	$tweetURL = str_replace(" ", "+", $tweetURL);
+
+
+	echo '<h3>Share on Twitter?</h3>';
+	echo '<p>Now that you have had your image labelled by Rekognition, why not share it with your followers? Click <a href="http://twitter.com/' . $tweetURL . '">here</a> to compose a tweet for this image.</p>';
     } else {
         echo "Sorry, there was an error uploading your file.";
     }
