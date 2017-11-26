@@ -5,8 +5,15 @@ The scripts utilise AWS Rekognition and S3, most can be done within the free tie
 
 # What you'll need
 
-1. You will need to create an S3 bucket
-2. A server with PHP 5.6+ and ImageMagick 
+1. An S3 bucket
+2. An instance with IAM permissions
+...Either via an IAM role attached to the instance (the simplest option), or;
+...Access/Secret keys in environment variables or saved within an AWS credentials file in your HOME directory
+...For more information, see http://docs.aws.amazon.com/aws-sdk-php/v3/guide/guide/credentials.html#credential-profiles
+3. IAM permissions should allow:
+...Put/Get/List objects within the S3 bucket.
+...Access to Rekognition functions
+4. A server with PHP 5.6+ and ImageMagick 
 
 # How to use
 
