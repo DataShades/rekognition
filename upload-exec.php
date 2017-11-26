@@ -9,7 +9,6 @@ require 'include/config.php';
 
 use Aws\S3\S3Client;
 use Aws\Rekognition\RekognitionClient;
-use Aws\DynamoDb\DynamoDbClient;
 
 // variables specific to this script
 $localUploadDir = "tmp/";
@@ -107,21 +106,6 @@ if ($uploadOk == 0) {
 	// also get the current time to allow some rudimentary sorting later
 	$date = date("Ymd");
 	
-	// lets do some DynamoDB now...
-	$dynamoDB = DynamoDBClient::factory(array(
-		'region'	=> $DynamoDBRegion,
-		'version'	=> 'latest'
-	));
-
-	$metadata = $dynamoDB->putItem([
-		'TableName'	=> $DynamoDBTableName,
-		'Item'		=> array(
-			'name'		=> array('S' => $keyname),
-			'json'		=> array('S' => $json),
-			'date'		=> array('S' => $date)
-		),
-	]);
-
 	// now we output the labels that Rekognition returned in a basic HTML table
 	echo '<p><table border="1"><tr><th>Label</th><th>Confidence</th></tr>';	
 	$i = 0;
