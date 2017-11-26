@@ -17,7 +17,8 @@ The scripts utilise AWS Rekognition and S3, most can be done within the free tie
 
 # How to use
 
-1. git clone git@github.com:DataShades/rekognition.git
+1. Clone the repository to a local directory
+   - `git clone git@github.com:DataShades/rekognition.git`
 2. Rename 'include/config.sample.php' to 'include/config.php'
 3. Update the variables as required.
 4. Ensure that the PHP processes on your server can write to the 'tmp' directory.
